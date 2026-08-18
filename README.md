@@ -1,4 +1,10 @@
 [README.md](https://github.com/user-attachments/files/31192292/README.md)
+# Stoic-ASI-Alignment-Framework (Phase 1)
+
+[![LessWrong Essay](https://shields.io)](https://www.lesswrong.com/posts/tCt7Rs9ypo6ezdy5N/warum-constitutional-ai-scheitern-muss-das-stoisch))
+
+A Python implementation of an intrinsically bounded Artificial Superintelligence...
+
 # stoic-alignment-framework# Stoic-ASI-Alignment-Framework (Phase 1)
 
 A Python implementation of an intrinsically bounded Artificial Superintelligence (ASI) based on Stoic philosophy. This framework solves the alignment problem at the root level by hard-coding the **Epictetian Dichotomy of Control** and the **Axiom of Ataraxia** into the value function of the model.
