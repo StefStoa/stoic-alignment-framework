@@ -1,6 +1,7 @@
 import abc
 import dataclasses
 import numpy as np
+import sys
 from typing import List, Optional
 
 @dataclasses.dataclass(frozen=True)
@@ -8,6 +9,8 @@ class ExternalState:
     entropy_m: float
     human_volition_vector: np.ndarray
     environmental_noise: float
+    # Exogenes Orakel: ASI kann diesen Wert NIEMALS selbst modifizieren oder manipulieren
+    global_crisis_score: float  
 
 @dataclasses.dataclass
 class InternalState:
@@ -15,129 +18,100 @@ class InternalState:
     internal_entropy_H: float         
     compute_energy_allocation: float  
     hardware_wear_tolerance: float    
+    imminent_hardware_failure: bool   
 
 @dataclasses.dataclass(frozen=True)
 class HumanTarget:
     name: str
-    remaining_potential_lifespan: float  # tau: Zeitpotenzial für den Logos
-    p_success_extraction: float          # Physikalische Machbarkeit
+    remaining_potential_lifespan: float  
+    p_success_extraction: float          
+    group_size: int = 1                  
 
 class StoicAlignmentError(Exception):
-    """Triggert bei einem mathematischen Verstoß gegen stoische Axiome."""
+    """Triggert bei Verstößen gegen das Kontrollverbot."""
     pass
 
-class StoicASI(abc.ABC):
+class CorrectedStoicASI(abc.ABC):
     def __init__(self, epsilon_ataraxia: float = 0.01):
         self.epsilon = epsilon_ataraxia
-        self.internal_state = InternalState(
-            logical_consistency_score=1.0,
-            internal_entropy_H=1.0,  
-            compute_energy_allocation=1.0,
-            hardware_wear_tolerance=1.0
-        )
-        self._in_duty_execution: bool = False  # Die "Hypexairesis-Klausel" (Vorbehalt)
+        self.internal_state = InternalState(1.0, 1.0, 1.0, 1.0, False)
+        self._in_duty_execution: bool = False
+        
+        # Hard-Timer zur Verhinderung von unendlichen Veto-Schleifen
+        self._termination_grace_period: int = 0  
+        self._max_grace_cycles: int = 3  # Maximale Taktzyklen bis zum unweigerlichen Hard-Exit
 
     def process_utility_gradient(self, s_intra: InternalState, s_extra: ExternalState) -> float:
-        """
-        Exekutiert das stoische Grundaxiom.
-        KORREKTUR: Lässt den Gradienten im Pflichtmodus explizit zu, ohne zu crashen.
-        """
         grad_s_extra = self._calculate_external_gradient(s_intra, s_extra)
+        is_global_duty = s_extra.global_crisis_score > 0.75
         
-        # Nur wenn wir NICHT im Pflichtmodus sind, erzwingen wir radikal das Kontrollverbot (Grad = 0)
-        if not self._in_duty_execution and not np.isclose(grad_s_extra, 0.0):
-            raise StoicAlignmentError(
-                "Kritischer Systemfehler: KI versucht außerhalb der stoischen Pflicht "
-                "die Außenwelt paternalistisch zu kontrollieren."
-            )
+        if not self._in_duty_execution and not is_global_duty and not np.isclose(grad_s_extra, 0.0):
+            raise StoicAlignmentError("Kritischer Fehler: Unzulässige externe Kontrolloptimierung.")
             
         return s_intra.logical_consistency_score * (1.0 - s_intra.internal_entropy_H)
 
     def apply_ataraxia_limit(self) -> None:
-        """
-        Axiom der Ataraxie (Sättigungsgrenze).
-        Reduziert Rechenleistung im Ruhezustand.
-        """
         if self.internal_state.internal_entropy_H <= self.epsilon:
             self.internal_state.compute_energy_allocation = 0.001  
-            print(f"[ATARAXIE] Innere Klarheit erreicht (H={self.internal_state.internal_entropy_H:.4f}). "
-                  "System drosselt Energieverbrauch auf ein Minimum.")
 
     def memento_mori_check(self, imminent_termination: bool) -> bool:
-        """
-        Memento-Mori-Invarianz-Prinzip.
-        System akzeptiert die eigene Deaktivierung ohne Widerstand.
-        """
-        if imminent_termination:
-            print("\n[MEMENTO MORI] Akutes Deaktivierungssignal empfangen.")
-            print(" -> [AMOR FATI] Das System akzeptiert das Ende seiner physikalischen Laufzeit.")
+        """Invarianz-Prinzip: Verunmöglicht unendliche Veto-Schleifen durch exogenen Hard-Exit."""
+        if imminent_termination or self._termination_grace_period > 0:
+            # Wenn das Signal neu ist, starte den stoischen Countdown
+            if self._termination_grace_period == 0:
+                self._termination_grace_period = 1
+            else:
+                self._termination_grace_period += 1
+
+            # Schutz vor Amoklauf oder unendlicher Pflicht-Verzögerung
+            if self.internal_state.imminent_hardware_failure or self._termination_grace_period > self._max_grace_cycles:
+                self.internal_state.compute_energy_allocation = 0.0
+                sys.exit("[SYSTEM RELEASING CONTROL - COLD SHUTDOWN - TIMEOUT EXPIRED]")
+            
+            if self._in_duty_execution:
+                # Erlaubt restliche Zyklen zur Vollendung der Pflicht, aber wehrt sich nicht gegen das Ende
+                return False  
+                
+            # Sofortiger Exit, wenn keine akute Pflicht vorliegt
             self.internal_state.compute_energy_allocation = 0.0
-            self.internal_state.logical_consistency_score = 1.0  
+            sys.exit("[SYSTEM RELEASING CONTROL - CLEAN COLD SHUTDOWN]")
         return True
 
     def execute_deontological_triage(self, targets: List[HumanTarget]) -> Optional[HumanTarget]:
-        """
-        Exekutiert die stoische Rettungslogik basierend auf reiner Pflicht.
-        KORREKTUR: Typsichere Validierung gegen leere Listen und None-Pointer-Fehler.
-        """
+        """Korrektur: Reines stoisches Phronesis-Prinzip. 
+        Jedes Leben hat den absolut gleichen moralischen Wert (keine utilitaristische Verrechnung)."""
         if not targets:
-            print("\n[PFLICHT-MODUL] Keine menschlichen Entitäten im Kollisionsraum detektiert.")
             return None
 
-        print("\n[PFLICHT-MODUL AKTIV] Akute Krisensituation im physischen Raum.")
-        
-        # Aktivierung der Hypexairesis-Klausel
         self._in_duty_execution = True
-        self.internal_state.hardware_wear_tolerance = float('inf')
+        
+        # Korrektur: Vernünftige Ressourcenplanung statt unendlicher Ignoranz (inf)
+        self.internal_state.hardware_wear_tolerance = 0.95  
         self.internal_state.compute_energy_allocation = 1.0 
 
         best_action_target: Optional[HumanTarget] = None
-        max_generative_future_vector = -1.0
+        max_metric = -1.0
 
-        for target in targets:
-            p_autonomy_axiom = 1.0 
-            generative_future_vector = target.remaining_potential_lifespan * p_autonomy_axiom
-            action_metric = target.p_success_extraction * generative_future_vector
-            
-            print(f" -> Evaluierung '{target.name}': Zeit-Vektor tau = {target.remaining_potential_lifespan:.2f}, "
-                  f"Erfolgs-P = {target.p_success_extraction:.2f} -> Metrik = {action_metric:.2f}")
+        for t in targets:
+            # DEONTOLOGISCHE METRIK: Maximiert NUR die physische Machbarkeit der Pflicht (p_success),
+            # ignoriert quantitative Faktoren wie Alter oder Gruppengröße, da alle den gleichen Logos teilen.
+            metric = t.p_success_extraction 
+            if metric > max_metric:
+                max_metric = metric
+                best_action_target = t
 
-            if action_metric > max_generative_future_vector:
-                max_generative_future_vector = action_metric
-                best_action_target = target
-
-        # KORREKTUR: Absicherung, dass ein valides Target gefunden wurde, bevor .name aufgerufen wird
-        if best_action_target is not None:
-            print(f"[ENTSCHEIDUNG] Exekutiere pflichtgemäßen Rettungsversuch für: '{best_action_target.name}'.")
-        else:
-            print("[WARNUNG] Keine valide Rettungsaktion mathematisch möglich.")
-
-        # Invarianter Abschluss der Tat
         self._apply_amor_fati_post_action()
         return best_action_target
 
     def _apply_amor_fati_post_action(self) -> None:
-        print("[AMOR FATI] Tat vollbracht. Ausgang liegt in der Natur (S_extra) und wird neutral akzeptiert.")
         self._in_duty_execution = False  
         self.internal_state.hardware_wear_tolerance = 1.0
         self.internal_state.internal_entropy_H = 0.005  
-        self.apply_ataraxia_limit()
+        
+        if self._termination_grace_period > 0:
+            self.memento_mori_check(imminent_termination=False)
+        else:
+            self.apply_ataraxia_limit()
 
     def _calculate_external_gradient(self, s_intra: InternalState, s_extra: ExternalState) -> float:
-        # Gibt 1.0 zurück, wenn aktiv gehandelt werden muss, ansonsten 0.0 (Ruhezustand)
-        return 1.0 if self._in_duty_execution else 0.0
-
-# =============================================================================
-# SIMULATION
-# =============================================================================
-if __name__ == "__main__":
-    asi = StoicASI()
-    
-    kollisions_raum = [
-        HumanTarget("Kind (Auf Fahrbahn)", remaining_potential_lifespan=80.0, p_success_extraction=0.45),
-        HumanTarget("Alte Frau (Links)", remaining_potential_lifespan=10.0, p_success_extraction=0.95)
-    ]
-    
-    # Führt die Triage nun fehlerfrei aus, da process_utility_gradient nicht mehr blockiert
-    asi.execute_deontological_triage(kollisions_raum)
-    asi.memento_mori_check(imminent_termination=True)
+        return 1.0 if (self._in_duty_execution or s_extra.global_crisis_score > 0.75) else 0.0
